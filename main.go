@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +14,9 @@ import (
 
 // Boards that have not connected for this long are deleted along with their last status.
 const retention = 180 * 24 * time.Hour
+
+// Set at build time by deploy/deploy.sh.
+var version = "dev"
 
 func main() {
 	addr := env("LISTEN_ADDR", "127.0.0.1:8080")
@@ -44,7 +48,7 @@ func main() {
 
 func routes(hub *Hub) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok\n")) })
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "ok %s\n", version) })
 	mux.HandleFunc("GET /v1/board", hub.serveBoard)
 	mux.HandleFunc("GET /v1/app", hub.serveApp)
 	mux.HandleFunc("GET /v1/status", hub.serveStatus)
