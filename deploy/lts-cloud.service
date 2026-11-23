@@ -1,0 +1,21 @@
+[Unit]
+Description=LTS Cloud
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/lts-cloud
+Environment=LISTEN_ADDR=127.0.0.1:8080
+Environment=DB_PATH=/var/lib/lts-cloud/cloud.db
+EnvironmentFile=-/etc/lts-cloud.env
+DynamicUser=yes
+StateDirectory=lts-cloud
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
