@@ -72,6 +72,17 @@ func read(t *testing.T, c *websocket.Conn) map[string]any {
 	return out
 }
 
+// readBoard returns the next message to the board that is not an app count.
+func readBoard(t *testing.T, c *websocket.Conn) map[string]any {
+	t.Helper()
+	for {
+		msg := read(t, c)
+		if _, ok := msg["APPS"]; !ok {
+			return msg
+		}
+	}
+}
+
 func TestRelay(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
@@ -82,9 +93,15 @@ func TestRelay(t *testing.T) {
 	}
 
 	board := dial(t, srv, "/v1/board", testSecret)
+	if got := read(t, board); got["APPS"] != 0.0 {
+		t.Fatalf("app count: %v", got)
+	}
 	app := dial(t, srv, "/v1/app", testSecret)
 	if got := read(t, app); got["ONLINE"] != true {
 		t.Fatalf("snapshot: %v", got)
+	}
+	if got := read(t, board); got["APPS"] != 1.0 {
+		t.Fatalf("app count: %v", got)
 	}
 
 	// Status packets are merged and passed on.
@@ -103,11 +120,11 @@ func TestRelay(t *testing.T) {
 	if code, _ := request(t, srv, "POST", "/v1/command", testSecret, `{"CMD":"PAUSE"}`); code != http.StatusAccepted {
 		t.Fatalf("command: got %d", code)
 	}
-	if got := read(t, board); got["CMD"] != "PAUSE" {
+	if got := readBoard(t, board); got["CMD"] != "PAUSE" {
 		t.Fatalf("board got %v", got)
 	}
 	app.Write(ctx, websocket.MessageText, []byte(`{"SET":{"SPD":80}}`))
-	if got := read(t, board); got["SET"] == nil {
+	if got := readBoard(t, board); got["SET"] == nil {
 		t.Fatalf("board got %v", got)
 	}
 	if code, _ := request(t, srv, "POST", "/v1/command", testSecret, `{"FOO":1}`); code != http.StatusBadRequest {

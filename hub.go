@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -127,6 +128,7 @@ func (h *Hub) serveBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer h.detachBoard(id, c)
+	h.tellBoard(id)
 
 	go ping(ctx, c)
 	for {
@@ -244,6 +246,7 @@ func (h *Hub) serveApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer h.detachApp(id, a)
+	h.tellBoard(id)
 
 	go a.writeLoop(ctx)
 	go ping(ctx, c)
@@ -260,11 +263,29 @@ func (h *Hub) serveApp(w http.ResponseWriter, r *http.Request) {
 
 func (h *Hub) detachApp(id string, a *appConn) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	if st := h.boards[id]; st != nil {
 		delete(st.apps, a)
 		h.releaseLocked(id, st)
 	}
+	h.mu.Unlock()
+	h.tellBoard(id)
+}
+
+// tellBoard sends {"APPS":n} to the board, so it streams its status only while an app watches.
+func (h *Hub) tellBoard(id string) {
+	var c *websocket.Conn
+	var n int
+	h.mu.Lock()
+	if st := h.boards[id]; st != nil {
+		c, n = st.conn, len(st.apps)
+	}
+	h.mu.Unlock()
+	if c == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+	defer cancel()
+	c.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(`{"APPS":%d}`, n)))
 }
 
 // push queues a message without blocking. An app that cannot keep up is disconnected and reconnects.
