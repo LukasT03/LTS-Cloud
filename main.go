@@ -49,6 +49,7 @@ func routes(hub *Hub) http.Handler {
 	mux.HandleFunc("GET /v1/app", hub.serveApp)
 	mux.HandleFunc("GET /v1/status", hub.serveStatus)
 	mux.HandleFunc("POST /v1/command", hub.serveCommand)
+	mux.HandleFunc("POST /v1/rekey", hub.serveRekey)
 	return mux
 }
 

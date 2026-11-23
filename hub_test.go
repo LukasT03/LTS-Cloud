@@ -134,3 +134,36 @@ func TestRelay(t *testing.T) {
 		t.Fatalf("stored status: %v", status)
 	}
 }
+
+func TestRekey(t *testing.T) {
+	srv := newTestServer(t)
+	newSecret := "fedcba9876543210fedcba9876543210"
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/v1/board"
+	dialBoard := func(secret string) error {
+		c, _, err := websocket.Dial(context.Background(), url, &websocket.DialOptions{HTTPHeader: auth(testID, secret)})
+		if err == nil {
+			c.CloseNow()
+		}
+		return err
+	}
+
+	if err := dialBoard(testSecret); err != nil {
+		t.Fatal(err)
+	}
+	// After a USB flash the board comes back with the same ID and a new secret.
+	if dialBoard(newSecret) == nil {
+		t.Fatal("board with new secret accepted before rekey")
+	}
+	if code, _ := request(t, srv, "POST", "/v1/rekey", testSecret, `{"SECRET":"nope"}`); code != http.StatusBadRequest {
+		t.Fatalf("invalid secret: got %d", code)
+	}
+	if code, _ := request(t, srv, "POST", "/v1/rekey", testSecret, `{"SECRET":"`+newSecret+`"}`); code != http.StatusNoContent {
+		t.Fatalf("rekey: got %d", code)
+	}
+	if err := dialBoard(newSecret); err != nil {
+		t.Fatalf("board after rekey: %v", err)
+	}
+	if code, _ := request(t, srv, "GET", "/v1/status", testSecret, ""); code != http.StatusForbidden {
+		t.Fatalf("old secret: got %d", code)
+	}
+}

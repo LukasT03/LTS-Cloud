@@ -338,6 +338,26 @@ func (h *Hub) serveCommand(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// serveRekey replaces the secret of a board. The app authorizes with the old secret and
+// sends the new one it got from the board over BLE: {"SECRET":"<new secret>"}.
+func (h *Hub) serveRekey(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.authorize(w, r, false)
+	if !ok {
+		return
+	}
+	var body struct{ SECRET string }
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxMessage)).Decode(&body); err != nil || !secretPattern.MatchString(body.SECRET) {
+		http.Error(w, "invalid secret", http.StatusBadRequest)
+		return
+	}
+	if err := h.store.rekeyBoard(id, body.SECRET); err != nil {
+		log.Printf("rekey %s: %v", id, err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // authorize checks "Authorization: Board <id>:<secret>". Only the board itself may register a new id.
 func (h *Hub) authorize(w http.ResponseWriter, r *http.Request, register bool) (string, bool) {
 	cred, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Board ")

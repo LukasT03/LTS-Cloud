@@ -84,6 +84,13 @@ func (s *Store) checkBoard(id, secret string, register bool) (bool, error) {
 	return subtle.ConstantTimeCompare(stored, sum[:]) == 1, nil
 }
 
+// rekeyBoard stores a new secret, e.g. after a USB flash erased the board's NVS.
+func (s *Store) rekeyBoard(id, secret string) error {
+	sum := sha256.Sum256([]byte(secret))
+	_, err := s.db.Exec("UPDATE boards SET secret_hash = ? WHERE id = ?", sum[:], id)
+	return err
+}
+
 func (s *Store) loadStatus(id string) ([]byte, time.Time, error) {
 	var status sql.NullString
 	var seen int64
